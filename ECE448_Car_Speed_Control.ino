@@ -65,7 +65,7 @@ void changeXSpeed() {
     xSpeed += change;
   } else if (absX < -deadzone && xSpeed >= -(256 - change)) {
     xSpeed -= change;
-  } else if (absX <= deadzone || absX >= -deadzone) {
+  } else if (absX <= deadzone && absX >= -deadzone) {
     slowDown();
   }
 }
