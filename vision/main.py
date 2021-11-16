@@ -7,9 +7,9 @@ prev = 0
 
 robot = RobotVision()
 
-# cap = cv2.VideoCapture(0)
-cap = cv2.VideoCapture('level_1.mov')
-# img_array = []
+cap = cv2.VideoCapture(0)
+#cap = cv2.VideoCapture('level_1.mov')
+img_array = []
 while True:
 
     time_elapsed = time.time() - prev
@@ -24,8 +24,9 @@ while True:
         try:
             frame = robot.resizeImage(image)
             cv2.imshow('original', frame)
-            img = robot.perceive(image, detection=False)
-            cv2.imshow('Frame1', img)
+            img_array.append(frame)
+            # img = robot.perceive(image, detection=False)
+            # cv2.imshow('Frame1', img)
         except:
             print("An exception occurred")
             break     
@@ -38,12 +39,12 @@ cap.release()
 # Destroy all the windows
 cv2.destroyAllWindows()
 
-# height, width, layers = img_array[0].shape
-# vidsize = (width,height)
+height, width, layers = img_array[0].shape
+vidsize = (width,height)
 
-# out = cv2.VideoWriter('output_level1.mov',cv2.VideoWriter_fourcc(*'DIVX'), 15, vidsize)
+out = cv2.VideoWriter('output_level1.mov',cv2.VideoWriter_fourcc(*'DIVX'), 15, vidsize)
  
-# for i in range(len(img_array)):
-#     out.write(img_array[i])   
-# out.release()
+for i in range(len(img_array)):
+    out.write(img_array[i])   
+out.release()
 
