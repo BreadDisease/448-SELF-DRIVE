@@ -9,7 +9,7 @@ robot = RobotVision()
 
 # cap = cv2.VideoCapture(0)
 cap = cv2.VideoCapture('level_1.mov')
-img_array = []
+# img_array = []
 while True:
 
     time_elapsed = time.time() - prev
