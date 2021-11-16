@@ -5,14 +5,25 @@ import cv2
 from scipy import signal
 from scipy.signal import find_peaks
 from sklearn import linear_model
+# # Add Object Detection Tool
+# from object_detection.yolo_v4 import utils
+# from object_detection.yolo_v4.object_detection import ObjectDetector
+from object_detection import ObjectDetector
 
 
 class RobotVision:
 
     def __init__(self):
         super().__init__()
+        self.detector = ObjectDetector(gpu=False)
 
-    def perceive(self, frame):
+    def detect(self, frame):
+        class_ids, scores, boxes = self.detector.detect(frame)
+        image = self.detector.drawbox(frame, class_ids, scores, boxes)
+        
+        return image
+
+    def perceive(self, frame, detection=False):
         rgb_image = self.getResizedRGBImage(frame)
         temp = self.preprocessImage(rgb_image)
 
@@ -23,15 +34,18 @@ class RobotVision:
         ransacLeft, ransacRight =  self.fitRANSAC(Y_coor, lefts, rights)
 
         ### Output Frame
-        intercept, outFrame, theme =  self.outputFrame(rgb_image, ransacLeft, ransacRight)
+        intercept, outframe, theme =  self.outputFrame(rgb_image, ransacLeft, ransacRight)
 
-        ### Plot
-        returnImg = self.plotFrame(intercept, outFrame, theme)
-
+        if detection == True:
+            outframe2 = self.detect(outframe)
+            rtimg = self.plotFrame(intercept, outframe2, theme)
+        else:
+            rtimg = self.plotFrame(intercept, outframe, theme)
+        
         ### Answer
-        self.response(intercept)
+        #self.response(intercept)
 
-        return cv2.cvtColor(returnImg, cv2.COLOR_RGB2BGR)
+        return cv2.cvtColor(rtimg, cv2.COLOR_RGB2BGR)
 
     def resizeImage(self, img, scale_percent=20):
         width = int(img.shape[1] * scale_percent / 100)
@@ -146,8 +160,8 @@ class RobotVision:
             if  rightDot <  copy3.shape[1] and rightDot >= 0:
                 copy3[i, rightDot] = [255, 0, 0]
                 theme[i, rightDot] = [0, 0, 0]
-            if np.abs(rightDot - leftDot) < 1:
-                print(f"Intercept at [{leftDot}/{rightDot}, {i}]")
+            # if np.abs(rightDot - leftDot) < 1:
+            #     print(f"Intercept at [{leftDot}/{rightDot}, {i}]")
         
         return [X_intercept, Y_intercept], copy3, theme
 
