@@ -13,9 +13,11 @@ from object_detection import ObjectDetector
 
 class RobotVision:
 
-    def __init__(self):
+    def __init__(self, detection=False):
         super().__init__()
-        self.detector = ObjectDetector(gpu=False)
+        self.dection = detection
+        if detection:
+            self.detector = ObjectDetector(gpu=False)
 
     def detect(self, frame):
         class_ids, scores, boxes = self.detector.detect(frame)
@@ -23,7 +25,7 @@ class RobotVision:
         
         return image
 
-    def perceive(self, frame, detection=False):
+    def perceive(self, frame):
         rgb_image = self.getResizedRGBImage(frame)
         temp = self.preprocessImage(rgb_image)
 
@@ -36,7 +38,7 @@ class RobotVision:
         ### Output Frame
         intercept, outframe, theme =  self.outputFrame(rgb_image, ransacLeft, ransacRight)
 
-        if detection == True:
+        if self.detection == True:
             outframe2 = self.detect(outframe)
             rtimg = self.plotFrame(intercept, outframe2, theme)
         else:
