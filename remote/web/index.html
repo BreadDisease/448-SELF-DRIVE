@@ -95,16 +95,18 @@
             var speed     = 127;
             var state     = 0;  // 0 - normal, 1 - switch
 
+            var lastSpeedUpdate = Date.now();
+
             const socket = new WebSocket("ws://localhost:8080");
 
-            setInterval(function() {
+            function sendUpdate() {
                 socket.send(`${direction} ${steering} ${speed} ${state}`);
-                // console.log(`${direction} ${steering} ${speed} ${state}`);
+                console.log(`${direction} ${steering} ${speed} ${state}`);
 
                 if (state === 1) {  // switch state back after send
                     state = 0;
                 }
-            }, 500);
+            }
 
             const speedBar   = document.getElementById('speedBar');
             const speedTrack = document.getElementById('speedTrack');
@@ -128,6 +130,11 @@
                 const trackRange = speedTrack.clientHeight - speedBar.clientHeight;
                 // Calculate speed out of 255
                 speed = 255 - Math.round((speedBar.offsetTop - speedTrack.offsetTop) / trackRange * 255);
+                let elapsedTime = Date.now() - lastSpeedUpdate;
+                if (elapsedTime > 250) {
+                    sendUpdate();
+                    lastSpeedUpdate = Date.now();
+                }
             });
 
             // Set speed bar to center of track on page load
@@ -145,22 +152,26 @@
                 event.preventDefault();
                 fwd.classList.add('active');
                 direction = 1;
+                sendUpdate();
             });
             fwd.addEventListener('touchend', function(event) {
                 event.preventDefault();
                 fwd.classList.remove('active');
                 direction = 0;
+                sendUpdate();
             });
 
             bwd.addEventListener('touchstart', function(event) {
                 event.preventDefault();
                 bwd.classList.add('active');
                 direction = 2;
+                sendUpdate();
             });
             bwd.addEventListener('touchend', function(event) {
                 event.preventDefault();
                 bwd.classList.remove('active');
                 direction = 0;
+                sendUpdate();
             });
 
             // Steering
@@ -168,41 +179,49 @@
                 event.preventDefault();
                 hdl.classList.add('active');
                 steering = 1;
+                sendUpdate();
             });
             hdl.addEventListener('touchend', function(event) {
                 event.preventDefault();
                 hdl.classList.remove('active');
                 steering = 0;
+                sendUpdate();
             });
             hdr.addEventListener('touchstart', function(event) {
                 event.preventDefault();
                 hdr.classList.add('active');
                 steering = 2;
+                sendUpdate();
             });
             hdr.addEventListener('touchend', function(event) {
                 event.preventDefault();
                 hdr.classList.remove('active');
                 steering = 0;
+                sendUpdate();
             });
             sfl.addEventListener('touchstart', function(event) {
                 event.preventDefault();
                 sfl.classList.add('active');
                 steering = 3;
+                sendUpdate();
             });
             sfl.addEventListener('touchend', function(event) {
                 event.preventDefault();
                 sfl.classList.remove('active');
                 steering = 0;
+                sendUpdate();
             });
             sfr.addEventListener('touchstart', function(event) {
                 event.preventDefault();
                 sfr.classList.add('active');
                 steering = 4;
+                sendUpdate();
             });
             sfr.addEventListener('touchend', function(event) {
                 event.preventDefault();
                 sfr.classList.remove('active');
                 steering = 0;
+                sendUpdate();
             });
 
             // Control state
@@ -210,10 +229,13 @@
                 event.preventDefault();
                 ctl.classList.add('active');
                 state = 1;
+                sendUpdate();
             });
             ctl.addEventListener('touchend', function(event) {
                 event.preventDefault();
                 ctl.classList.remove('active');
+                state = 0;
+                sendUpdate();
             });
         </script>
     </body>
