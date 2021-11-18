@@ -1,3 +1,5 @@
+# Run `launch` script to get everything going.
+
 ## Important
 Start `remote` before starting `server.py`. Make sure to load web UI **after** `server.py` is running.
 
