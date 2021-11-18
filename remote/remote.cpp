@@ -72,10 +72,10 @@ void receiver() {
         // Process request data
         std::string data = std::string(static_cast<char*>(request.data()), request.size());
         std::istringstream iss(data);
-        std::vector<int> data(4);
-        iss >> data[0] >> data[1] >> data[2] >> data[3];
+        std::vector<int> cmdData(4);
+        iss >> cmdData[0] >> cmdData[1] >> cmdData[2] >> cmdData[3];
         // Send data to transmitter process
-        world.send(TX_RANK, REQ_TAG, data);
+        world.send(TX_RANK, REQ_TAG, cmdData);
 
         // Reply to client with ACK
         zmq::message_t reply((void *)"ACK", 3, NULL);
