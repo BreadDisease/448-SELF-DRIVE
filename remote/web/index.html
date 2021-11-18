@@ -12,19 +12,23 @@
             }
 
             .bi-large {
-                font-size: 5em;
+                font-size: 4em;
+            }
+
+            .bi-med {
+                font-size: 2em;
             }
 
             .speed-bar {
                 width: 100%;
-                height: 150px;
+                height: 50px;
                 border-radius: 0.25rem;
                 position: relative;
             }
 
             .speed-track {
                 border-radius: 0.25rem;
-                background-image: url(https://miamioh.edu/cec/_files/images/ece/faculty/leonard-jim.jpg);
+                /* background-image: url(https://miamioh.edu/cec/_files/images/ece/faculty/leonard-jim.jpg); */
                 background-size: 100% 100%;
             }
         </style>
@@ -45,13 +49,13 @@
                     </div>
                 </div>
                 <div class="col-2">
-                    <div class="row h-25">
+                    <div class="row" style="height: 20% !important;">
                         <div class="col-12 mb-3">
                             <!-- State -->
-                            <button class="btn btn-secondary h-100 w-100" id="ctl"><i class="bi bi-broadcast-pin bi-large"></i></button>
+                            <button class="btn btn-secondary h-100 w-100" id="ctl"><i class="bi bi-broadcast-pin bi-med"></i></button>
                         </div>
                     </div>
-                    <div class="row h-75">
+                    <div class="row" style="height: 80% !important;">
                         <div class="col-12">
                             <div class="h-100 w-100 bg-secondary speed-track" id="speedTrack">
                                 <div class="speed-bar bg-danger" id="speedBar"></div>
@@ -100,7 +104,7 @@
                 if (state === 1) {  // switch state back after send
                     state = 0;
                 }
-            }, 1000);
+            }, 500);
 
             const speedBar   = document.getElementById('speedBar');
             const speedTrack = document.getElementById('speedTrack');
