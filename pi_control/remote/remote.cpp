@@ -1,57 +1,59 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <RF24/RF24.h>
 #include <boost/mpi.hpp>
 #include <zmq.hpp>
-
-#include "cc1100_raspi.h"
-#include <wiringPi.h>
 
 const int RX_RANK = 0;
 const int TX_RANK = 1;
 const int REQ_TAG = 0;
 
-uint8_t RF_TX_ADDR = 1;
-uint8_t RF_RX_ADDR = 3;
-
-uint8_t Tx_fifo[FIFOBUFFER], Rx_fifo[FIFOBUFFER];
-uint8_t My_addr, Tx_addr, Rx_addr, Pktlen, pktlen, Lqi, Rssi;
-uint8_t rx_addr,sender,lqi;
- int8_t rssi_dbm;
-
-int cc1100_freq_select = 434;
-int cc1100_mode_select = 3;
-int cc1100_channel_select = 1;
-CC1100 radio;
+struct Payload {
+    uint8_t direction;
+    uint8_t steering;
+    uint8_t speed;
+    bool    state;
+};
 
 void transmitter() {
     // Set up MPI communications
     boost::mpi::communicator world;
     std::vector<int> data;
 
-    // Set up Pi hardware
-    wiringPiSetup();
-    // Initialize CC1100 library
-    radio.begin(RF_TX_ADDR);
-    radio.sidle();
-    radio.set_output_power_level(0);
-    radio.receive();
+    // Initialize payload
+    Payload payload;
+
+    // Set up radio hardware
+    RF24 radio(17, 0);
+    uint64_t address = 0x7878787878LL;
+    if (!radio.begin()) {
+        std::cerr << "Radio initialization failed." << std::endl;
+        return;
+    }
+
+    radio.setPALevel(RF24_PA_LOW);
+    radio.setPayloadSize(sizeof(payload));
+
+    // Put radio in TX mode
+    radio.stopListening();
+    radio.openWritingPipe(address);
 
     while (true) {
         // Receive data to transmit
         world.recv(RX_RANK, REQ_TAG, data);
-        Tx_fifo[3] = data[0];
-        Tx_fifo[4] = data[1];
-        Tx_fifo[5] = data[2];
-        Tx_fifo[6] = data[3];
-        Pktlen = 0x07;
+
+        // Set payload data
+        payload.direction = data[0];
+        payload.steering  = data[1];
+        payload.speed     = data[2];
+        payload.state     = data[3];
+
         // Send the data
-        std::cout << "Sending data: " << data[0]
-                << ", " << data[1] << ", " << data[2]
-                << ", " << data[3] << ", " << std::endl;
-        uint8_t res = radio.sent_packet(RF_TX_ADDR, RF_RX_ADDR, Tx_fifo, Pktlen, 1);
-        if (res == 1) {
-            std::cout << "Packet sent successfully" << std::endl;
+        if (radio.write(&payload, sizeof(payload))) {
+            std::cout << "Delivered " << (int) sizeof(payload) << " bytes." << std::endl;
+        } else {
+            std::cout << "Payload failed to deliver." << std::endl;
         }
     }
 }
