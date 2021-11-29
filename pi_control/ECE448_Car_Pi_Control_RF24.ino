@@ -23,7 +23,7 @@ int relayPin = A0;
 // Motor speed variables
 int xSpeed, ySpeed;
 int change = 1;
-int tankSpeed = 60;
+int turnSpeed = 100;
 
 // Boolean to state switch between stock remote control and our remote control
 bool state = true;
@@ -109,17 +109,17 @@ void changeYSpeed() {
   if (payload.steer == 1 || payload.steer == 2) {
     tankTurn(payload.steer);
   } else if (payload.steer == 3) {
-    ySpeed = -payload.speedVal / 2;
+    ySpeed = -turnSpeed;
     motorL.setSpeed(xSpeed);   // Drive left motor at x value
     motorR.setSpeed(xSpeed);   // Drive right motor at x value
     motorS.setSpeed(ySpeed);   // Drive steering motor at y value
   } else if (payload.steer == 4) {
-    ySpeed = payload.speedVal / 2;
+    ySpeed = turnSpeed;
     motorL.setSpeed(xSpeed);   // Drive left motor at x value
     motorR.setSpeed(xSpeed);   // Drive right motor at x value
     motorS.setSpeed(ySpeed);   // Drive steering motor at y value
   } else if (payload.steer == 0) {
-    slowDownY();
+    ySpeed = 0;
     motorL.setSpeed(xSpeed);   // Drive left motor at x value
     motorR.setSpeed(xSpeed);   // Drive right motor at x value
     motorS.setSpeed(ySpeed);   // Drive steering motor at y value
@@ -136,24 +136,13 @@ void slowDownX() {
   }
 }
 
-void slowDownY() {
-  //  if (ySpeed > 30) {
-  //    ySpeed -= change;
-  //  } else if (ySpeed < -30) {
-  //    ySpeed += change;
-  //  } else {
-  //    ySpeed = 0;
-  //  }
-  ySpeed = 0;
-}
-
 void tankTurn(int turnDir) {
   if (turnDir == 1) {
-    motorL.setSpeed(-tankSpeed);
-    motorR.setSpeed(tankSpeed);
+    motorL.setSpeed(-turnSpeed);
+    motorR.setSpeed(turnSpeed);
   } else if (turnDir == 2) {
-    motorL.setSpeed(tankSpeed);
-    motorR.setSpeed(-tankSpeed);
+    motorL.setSpeed(turnSpeed);
+    motorR.setSpeed(-turnSpeed);
   } else if (turnDir == 0) {
     motorL.setSpeed(0);
     motorR.setSpeed(0);
