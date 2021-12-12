@@ -76,12 +76,7 @@ class RobotVision:
         img_dilation = cv2.dilate(dst, kernel, iterations=3)
         img_erosion2 = cv2.erode(img_dilation, kernel, iterations=3)
         
-    #     low_threshold = 100
-    #     high_threshold = 250
         edges = cv2.Canny(img_erosion2, low_threshold, high_threshold)
-
-    #     plt.imshow(edges, cmap="gray")
-    #     plt.show()
         
         sobelx = cv2.Sobel(src=edges, ddepth=cv2.CV_64F, dx=1, dy=0, ksize=5) # Sobel Edge Detection on the X axis
         sobely = cv2.Sobel(src=edges, ddepth=cv2.CV_64F, dx=0, dy=1, ksize=5) # Sobel Edge Detection on the Y axis
