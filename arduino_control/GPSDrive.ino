@@ -1,4 +1,4 @@
-// Copyright 2022 Taylor Owens
+// Copyright 2022 Matt Aaron
 
 #include <TinyGPSPlus.h>
 #include <CytronMotorDriver.h>
