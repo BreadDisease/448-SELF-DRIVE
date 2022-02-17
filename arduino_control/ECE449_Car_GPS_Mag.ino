@@ -106,6 +106,11 @@ void setup() {
     pinMode(A14, OUTPUT);
     pinMode(A15, OUTPUT);
 
+    // Set up PID cycle time to be controlled manually
+    PID::L.setTimeStep(1);
+    PID::R.setTimeStep(1);
+    PID::S.setTimeStep(1);
+
     // Set control mode to AUTO
     setControlMode(AUTO);
 
