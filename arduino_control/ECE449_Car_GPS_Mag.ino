@@ -77,6 +77,7 @@ namespace PID {
     double speedL = 0;
     double speedR = 0;
     double speedS = 0;
+    const double setpointS = 0;  // This needs to be a variable for the library to work
 
     // Left and right drive PIDs
     AutoPID L(&Encoder::ticksL,     &setpointL, &speedL,   0, 255, PID_DRIVE_KP, PID_DRIVE_KI, PID_DRIVE_KD);
@@ -84,7 +85,7 @@ namespace PID {
     
     // Steering PID
     // Setpoint is set to zero because we work with relative heading
-    AutoPID S(&Compass::relHeading,          0, &speedS, -75,  75, PID_STEER_KP, PID_STEER_KI, PID_STEER_KD);
+    AutoPID S(&Compass::relHeading, &setpointS, &speedS, -75,  75, PID_STEER_KP, PID_STEER_KI, PID_STEER_KD);
 }
 
 void setup() {
