@@ -18,8 +18,8 @@
 #define PID_DRIVE_KI 8
 #define PID_DRIVE_KD 0.05
 #define PID_STEER_KP 1
-#define PID_STEER_KI 0
-#define PID_STEER_KD 0
+#define PID_STEER_KI 0.5
+#define PID_STEER_KD 0.05
 
 // Magnetometer calibration
 #define MAG_X_MIN  -23.09
