@@ -11,8 +11,8 @@
    ======================= */
 // PID parameters
 #define PID_CYCLE_TIME_MS 200
-#define PID_DRIVE_KP 4
-#define PID_DRIVE_KI 1
+#define PID_DRIVE_KP 2
+#define PID_DRIVE_KI 0.5
 #define PID_DRIVE_KD 0
 
 // Magnetometer calibration
@@ -38,12 +38,12 @@ struct Waypoint {
 
 int currWaypointIdx = 0;
 Waypoint route[] = {
-  { 39.509460  -84.732803 },
-  { 39.509334  -84.732719 },
-  { 39.509254  -84.732711 },
-  { 39.509208  -84.732742 },
-  { 39.509212  -84.732795 },
-  { 39.509216  -84.733062 }
+  { 39.50878524780, -84.732810974121458 },
+  { 39.50893783569, -84.732780456542138 },
+  { 39.50907897949, -84.732666015625341 },
+  { 39.50916671752, -84.73262023925736 },
+  { 39.50921630859, -84.732673645019222 },
+  { 39.50923156738, -84.732734680175200 }
 };
 
 /* =======================
@@ -110,7 +110,7 @@ namespace PID {
 
 void setup() {
   // Initialize serial communication
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial2.begin(115200);
 
   // Initialize encoders
@@ -143,7 +143,6 @@ void setup() {
   calibrateSteering();
 
   // Wait for GPS to acquire fix
-  getGPSData();
   while (!gps.hdop.isValid() || gps.hdop.hdop() > 1.5 || !gps.location.isValid()) {
     getGPSData();
   }
@@ -156,6 +155,17 @@ void loop() {
   getGPSData();
   getCompassData();
   runPID();
+
+  //Serial.println();
+  //Serial.print("Curr location: ");
+  //Serial.print(gps.location.lat(), 8);
+  //Serial.print(",");
+  //Serial.println(gps.location.lng(), 8);
+  //Serial.print("Abs Target Heading: ");
+  //Serial.println(PID::targetHeading);
+  //Serial.print("Curr Relative Heading: ");
+  //Serial.println(Compass::relHeading);
+  //PID::targetHeading     = TinyGPSPlus::courseTo(gps.location.lat(), gps.location.lng(), route[currWaypointIdx].lat, route[currWaypointIdx].lng);
 
   switch (state) {
     case RUN:
@@ -176,16 +186,25 @@ void loop() {
 
       PID::targetHeading     = TinyGPSPlus::courseTo(gps.location.lat(), gps.location.lng(), route[currWaypointIdx].lat, route[currWaypointIdx].lng);
       double distToWaypoint  = TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), route[currWaypointIdx].lat, route[currWaypointIdx].lng);
-      if (distToWaypoint <= 1.5) {
+      Serial.print("Dist to waypoint: ");
+      Serial.println(distToWaypoint);
+      Serial.print("Curr waypoint: ");
+      Serial.println(currWaypointIdx);
+      if (distToWaypoint <= 3) {
         currWaypointIdx++;
         
-        if (currWaypointIdx >= 6) {
+        if (currWaypointIdx == 6) {
           state = STOP;
+          PID::setpointL = 0;
+          PID::setpointR = 0;
         }
       }
       break;
 
     case STOP:
+      Motor::L.setSpeed(0);
+      Motor::R.setSpeed(0);
+      while (true) {}
       PID::setpointL = 0;
       PID::setpointR = 0;
       break;
