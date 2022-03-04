@@ -179,7 +179,7 @@ void loop() {
       if (distToWaypoint <= 3) {
         currWaypointIdx++;
 
-        if (currWaypointIdx == 5) {
+        if (currWaypointIdx == 6) {
           state = STOP;
           PID::setpointL = 0;
           PID::setpointR = 0;
