@@ -11,8 +11,8 @@
    ======================= */
 // PID parameters
 #define PID_CYCLE_TIME_MS 200
-#define PID_DRIVE_KP 2
-#define PID_DRIVE_KI 0.5
+#define PID_DRIVE_KP 4
+#define PID_DRIVE_KI 8
 #define PID_DRIVE_KD 0
 
 // Magnetometer calibration
@@ -38,12 +38,11 @@ struct Waypoint {
 
 int currWaypointIdx = 0;
 Waypoint route[] = {
-  { 39.50878524780, -84.732810974121458 },
-  { 39.50893783569, -84.732780456542138 },
-  { 39.50907897949, -84.732666015625341 },
-  { 39.50916671752, -84.73262023925736 },
-  { 39.50921630859, -84.732673645019222 },
-  { 39.50923156738, -84.732734680175200 }
+  { 39.50875325337, -84.73282501449 },
+  { 39.50890219116, -84.73278601591 },
+  { 39.50910077438, -84.73264562103 },
+  { 39.50920555734, -84.73269097767 },
+  { 39.50922165971, -84.73291012222 },
 };
 
 /* =======================
@@ -56,9 +55,9 @@ TinyGPSLocation startLocation;   // Location recorded when state changes
    Motor Drivers
    ======================= */
 namespace Motor {
-  CytronMD L(PWM_DIR, 3, 2);
-  CytronMD R(PWM_DIR, 5, 4);
-  CytronMD S(PWM_DIR, 6, 7);
+CytronMD L(PWM_DIR, 3, 2);
+CytronMD R(PWM_DIR, 5, 4);
+CytronMD S(PWM_DIR, 6, 7);
 }
 
 /* =======================
@@ -66,46 +65,46 @@ namespace Motor {
    ======================= */
 TinyGPSPlus gps;
 namespace Compass {
-  Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
-  double relHeading = 0;
+Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
+double relHeading = 0;
 }
 
 /* =======================
    PID Variables
    ======================= */
 namespace Encoder {
-  volatile double ticksL;
-  volatile double ticksR;
+volatile double ticksL;
+volatile double ticksR;
 }
 
 namespace PID {
-  unsigned long lastCycleTime = 0;
-  double setpointL = 2;
-  double setpointR = 2;
-  double speedL = 0;
-  double speedR = 0;
-  double speedS = 0;
-  
-  // Steering
-  int maxPos = 0;
-  int minPos = 0;
-  int ctrPos = 0;
-  double actSteerPos = 0;
-  double relSteerPos = 0;
-  double setpointS = 0;
-  double targetHeading = 0;
-  const double setpointC = 0;  // This needs to be a variable for the library to work
-  
-  // Left and right drive PIDs
-  AutoPID L(&Encoder::ticksL,     &setpointL, &speedL,   0, 255, PID_DRIVE_KP, PID_DRIVE_KI, PID_DRIVE_KD);
-  AutoPID R(&Encoder::ticksR,     &setpointR, &speedR,   0, 255, PID_DRIVE_KP, PID_DRIVE_KI, PID_DRIVE_KD);
-  
-  // Steering PID
-  // Setpoint is set to zero because we work with relative heading
-  AutoPID S(&actSteerPos, &setpointS, &speedS, -255,  255, 5, 8, 0);
-  
-  // Compass PID
-  AutoPID C(&Compass::relHeading, &setpointC, &relSteerPos, -110, 110, 5, 0, 0);
+unsigned long lastCycleTime = 0;
+double setpointL = 2;
+double setpointR = 2;
+double speedL = 0;
+double speedR = 0;
+double speedS = 0;
+
+// Steering
+int maxPos = 0;
+int minPos = 0;
+int ctrPos = 0;
+double actSteerPos = 0;
+double relSteerPos = 0;
+double setpointS = 0;
+double targetHeading = 0;
+const double setpointC = 0;  // This needs to be a variable for the library to work
+
+// Left and right drive PIDs
+AutoPID L(&Encoder::ticksL,     &setpointL, &speedL,   0, 255, PID_DRIVE_KP, PID_DRIVE_KI, PID_DRIVE_KD);
+AutoPID R(&Encoder::ticksR,     &setpointR, &speedR,   0, 255, PID_DRIVE_KP, PID_DRIVE_KI, PID_DRIVE_KD);
+
+// Steering PID
+// Setpoint is set to zero because we work with relative heading
+AutoPID S(&actSteerPos, &setpointS, &speedS, -255,  255, 5, 8, 0);
+
+// Compass PID
+AutoPID C(&Compass::relHeading, &setpointC, &relSteerPos, -110, 110, 5, 0, 0);
 }
 
 void setup() {
@@ -156,16 +155,6 @@ void loop() {
   getCompassData();
   runPID();
 
-  //Serial.println();
-  //Serial.print("Curr location: ");
-  //Serial.print(gps.location.lat(), 8);
-  //Serial.print(",");
-  //Serial.println(gps.location.lng(), 8);
-  //Serial.print("Abs Target Heading: ");
-  //Serial.println(PID::targetHeading);
-  //Serial.print("Curr Relative Heading: ");
-  //Serial.println(Compass::relHeading);
-  //PID::targetHeading     = TinyGPSPlus::courseTo(gps.location.lat(), gps.location.lng(), route[currWaypointIdx].lat, route[currWaypointIdx].lng);
 
   switch (state) {
     case RUN:
@@ -186,14 +175,10 @@ void loop() {
 
       PID::targetHeading     = TinyGPSPlus::courseTo(gps.location.lat(), gps.location.lng(), route[currWaypointIdx].lat, route[currWaypointIdx].lng);
       double distToWaypoint  = TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), route[currWaypointIdx].lat, route[currWaypointIdx].lng);
-      Serial.print("Dist to waypoint: ");
-      Serial.println(distToWaypoint);
-      Serial.print("Curr waypoint: ");
-      Serial.println(currWaypointIdx);
       if (distToWaypoint <= 3) {
         currWaypointIdx++;
-        
-        if (currWaypointIdx == 6) {
+
+        if (currWaypointIdx == 5) {
           state = STOP;
           PID::setpointL = 0;
           PID::setpointR = 0;
@@ -231,9 +216,7 @@ void runPID() {
     PID::lastCycleTime = millis();
     interrupts();
 
-    Serial.println(PID::setpointS);
-
-    Motor::L.setSpeed(PID::speedL);
+    Motor::L.setSpeed(PID::speedR);
     Motor::R.setSpeed(PID::speedR);
     Motor::S.setSpeed(PID::speedS);
   }
@@ -280,6 +263,11 @@ void getCompassData() {
   }
 
   float headingDegrees = heading * 180 / M_PI;  // Absolute heading in degrees, from 0 to 360.
+  // Incorporate GPS heading
+  if (gps.course.isValid() && gps.speed.isValid() && gps.speed.kmph() > 1) {  // Faster than 1 km/h
+    float gpsHeadingDegrees = gps.course.deg();
+    headingDegrees = (gpsHeadingDegrees * 0.85) + (headingDegrees * 0.15);
+  }
 
   // For PID steering, we need to convert this absolute heading to a relative
   // heading in the range of -180 to 180, such that the setpoint can be zero.
