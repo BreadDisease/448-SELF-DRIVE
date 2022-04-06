@@ -26,6 +26,10 @@
 #define PIN_ENCODER_LEFT  19
 #define PIN_ENCODER_RIGHT 18
 
+#define TURNING_RADIUS 2.06  // meters
+#define WHEEL_CIRCUMFERENCE 1.117
+#define ONE_REV_TICKS 17
+
 // END OF CONFIGURATION
 // =======================
 
@@ -38,13 +42,19 @@ struct Waypoint {
 
 int currWaypointIdx = 0;
 Waypoint route[] = {
-  { 39.51027784398368, -84.73265256576867 },
-  { 39.510274160406595, -84.73247208965324 },
-  { 39.510273423691146, -84.73231930563927 },
-  { 39.51027047682933, -84.73217989022653 },
-  { 39.51026826668285, -84.73204238461459 },
-  { 39.51026679325183, -84.73180424259657 },
-  { 39.510263109674185, -84.73161536229334 }
+  { 39.5102767680703, -84.7326471498825 },
+  { 39.51027632936558, -84.73254972346685 },
+  { 39.51027578137975, -84.73247258665262 },
+  { 39.51027528137978, -84.73240286272696 },
+  { 39.510276180133495, -84.73233448964471 },
+  { 39.51027546610668, -84.73226528850194 },
+  { 39.510272602721564, -84.7321575134061 },
+  { 39.5102705293654, -84.73206027008631 },
+  { 39.51026922224198, -84.73192867148735 },
+  { 39.51026919871786, -84.73180867131127 },
+  { 39.510266453780645, -84.73170221686365 },
+  { 39.51026753055359, -84.7316162288247 },
+  { 39.5102622583931, -84.7315089026633 }
 };
 
 /* =======================
@@ -77,6 +87,9 @@ double relHeading = 0;
 namespace Encoder {
 volatile double ticksL;
 volatile double ticksR;
+
+volatile double totalTicksL;
+volatile double totalTicksR;
 }
 
 namespace PID {
@@ -106,13 +119,14 @@ AutoPID R(&Encoder::ticksR,     &setpointR, &speedR,   0, 255, PID_DRIVE_KP, PID
 AutoPID S(&actSteerPos, &setpointS, &speedS, -255,  255, 5, 8, 0);
 
 // Compass PID
-AutoPID C(&Compass::relHeading, &setpointC, &relSteerPos, -110, 110, 2, 0, 0);
+AutoPID C(&Compass::relHeading, &setpointC, &relSteerPos, -110, 110, 1, 0, 0);
 }
 
 void setup() {
   // Initialize serial communication
   Serial.begin(115200);
   Serial2.begin(115200);
+  Serial3.begin(115200);
 
   // Initialize encoders
   pinMode(PIN_ENCODER_LEFT,  INPUT_PULLUP);
@@ -144,8 +158,37 @@ void setup() {
   calibrateSteering();
 
   // Wait for GPS to acquire fix
-  while (!gps.hdop.isValid() || gps.hdop.hdop() > 1 || !gps.location.isValid()) {
+  while (!gps.hdop.isValid() || gps.hdop.hdop() > 1.35 || !gps.location.isValid()) {
     getGPSData();
+    Serial.println(gps.hdop.hdop());
+  }
+
+  // Wait for Pi to boot and login
+  bool credPrompt = false;
+  char serialBuff[7];
+  while (!credPrompt) {
+    while (Serial3.available()) {
+      char in = (char) Serial3.read();
+      Serial.print(in);
+      serialBuff[0] = serialBuff[1];
+      serialBuff[1] = serialBuff[2];
+      serialBuff[2] = serialBuff[3];
+      serialBuff[3] = serialBuff[4];
+      serialBuff[4] = serialBuff[5];
+      serialBuff[5] = serialBuff[6];
+      serialBuff[6] = in;
+    }
+
+    if (serialBuff[0] == 'l' && serialBuff[5] == ':') {
+      credPrompt = true;
+      break;
+    }
+  }
+
+  if (credPrompt) {
+    Serial3.println("pi");
+    delay(1000);
+    Serial3.println("raspberry");
   }
 
   // Fix acquired, set state to RUN
@@ -156,6 +199,14 @@ void loop() {
   getGPSData();
   getCompassData();
   runPID();
+
+  while (Serial3.available()) {
+    Serial.print((char) Serial3.read());
+  }
+
+  while (Serial.available()) {
+    Serial3.print((char) Serial.read());
+  }
 
 
   switch (state) {
@@ -180,7 +231,7 @@ void loop() {
       if (distToWaypoint <= 1.75) {
         currWaypointIdx++;
 
-        if (currWaypointIdx == 7) {
+        if (currWaypointIdx == 13) {
           state = STOP;
           PID::setpointL = 0;
           PID::setpointR = 0;
@@ -218,7 +269,7 @@ void runPID() {
     PID::lastCycleTime = millis();
     interrupts();
 
-    Motor::L.setSpeed(PID::speedR);
+    Motor::L.setSpeed(PID::speedL);
     Motor::R.setSpeed(PID::speedR);
     Motor::S.setSpeed(PID::speedS);
   }
@@ -299,6 +350,7 @@ void setControlMode(ControlMode mode) {
 */
 void encoderLeftISR() {
   Encoder::ticksL += 1;
+  Encoder::totalTicksL += 1;
 }
 
 /**
@@ -306,6 +358,7 @@ void encoderLeftISR() {
 */
 void encoderRightISR() {
   Encoder::ticksR += 1;
+  Encoder::totalTicksR += 1;
 }
 
 void calibrateSteering() {
