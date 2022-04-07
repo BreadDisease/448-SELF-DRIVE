@@ -5,6 +5,7 @@ import cv2
 from scipy import signal
 from scipy.signal import find_peaks
 from sklearn import linear_model
+from sklearn.linear_model import LinearRegression, RANSACRegressor
 # # Add Object Detection Tool
 # from object_detection.yolo_v4 import utils
 # from object_detection.yolo_v4.object_detection import ObjectDetector
@@ -15,7 +16,7 @@ class RobotVision:
 
     def __init__(self, detection=False):
         super().__init__()
-        self.dection = detection
+        self.detection = detection
         if detection:
             self.detector = ObjectDetector(gpu=False)
 
@@ -27,27 +28,36 @@ class RobotVision:
 
     def perceive(self, frame):
         rgb_image = self.getResizedRGBImage(frame)
+        
+        rgb_image = rgb_image[20:186, :]
+
         temp = self.preprocessImage(rgb_image)
 
+        #rgb_image = temp[20:186, :]
+        
         ### Detect data points
         Y_coor, lefts, rights = self.detectDataPoint(temp)
-
-        ### Fit Ransac
-        ransacLeft, ransacRight =  self.fitRANSAC(Y_coor, lefts, rights)
-
-        ### Output Frame
-        intercept, outframe, theme =  self.outputFrame(rgb_image, ransacLeft, ransacRight)
-
-        if self.detection == True:
-            outframe2 = self.detect(outframe)
-            rtimg = self.plotFrame(intercept, outframe2, theme)
+        if (len(Y_coor) < 3):
+            print("Not enough samples")
+            return temp, cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
         else:
-            rtimg = self.plotFrame(intercept, outframe, theme)
-        
-        ### Answer
-        #self.response(intercept)
+            print(len(Y_coor))
+            ### Fit Ransac
+            ransacLeft, ransacRight =  self.fitRANSAC(Y_coor, lefts, rights)
 
-        return cv2.cvtColor(rtimg, cv2.COLOR_RGB2BGR)
+            ### Output Frame
+            intercept, outframe, theme =  self.outputFrame(rgb_image, ransacLeft, ransacRight)
+
+            if self.detection == True:
+                outframe2 = self.detect(outframe)
+                rtimg = self.plotFrame(intercept, outframe2, theme)
+            else:
+                rtimg = self.plotFrame(intercept, outframe, theme)
+            
+            ### Answer
+            #self.response(intercept)
+
+            return temp, cv2.cvtColor(rtimg, cv2.COLOR_RGB2BGR)
 
     def resizeImage(self, img, scale_percent=20):
         width = int(img.shape[1] * scale_percent / 100)
@@ -91,8 +101,8 @@ class RobotVision:
         rights = []
 
         y = img.shape[0] - 1
-        while y >= 0:
-            if (len(lefts) >= 10):
+        while y >= 20:
+            if (len(lefts) >= 20):
                 break
             horizontal_pixels = img[y,:]
             if (horizontal_pixels.min() >=0):
@@ -111,7 +121,7 @@ class RobotVision:
                         lefts.append(leftPos)
                         rights.append(rightPos)
             ### update 
-            y -= 10
+            y -= 3
         
         return Y_coor, lefts, rights
 
@@ -126,11 +136,11 @@ class RobotVision:
         X_right = np.array(rights).reshape(-1, 1)
 
         # Robustly fit linear model with RANSAC algorithm
-        ransacLeft = linear_model.RANSACRegressor()
+        ransacLeft = linear_model.RANSACRegressor(base_estimator=LinearRegression())
         ransacLeft.fit(Y_data, X_left)
-        ransacRight = linear_model.RANSACRegressor()
+        ransacRight = linear_model.RANSACRegressor(base_estimator=LinearRegression())
         ransacRight.fit(Y_data, X_right)
-        
+
         return ransacLeft, ransacRight
 
     def outputFrame(self, image, ransacLeft, ransacRight):
