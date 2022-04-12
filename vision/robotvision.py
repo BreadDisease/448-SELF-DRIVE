@@ -6,9 +6,6 @@ from scipy import signal
 from scipy.signal import find_peaks
 from sklearn import linear_model
 from sklearn.linear_model import LinearRegression, RANSACRegressor
-# # Add Object Detection Tool
-# from object_detection.yolo_v4 import utils
-# from object_detection.yolo_v4.object_detection import ObjectDetector
 from object_detection import ObjectDetector
 
 
@@ -26,14 +23,17 @@ class RobotVision:
         
         return image
 
-    def perceive(self, frame):
-        rgb_image = self.getResizedRGBImage(frame)
+    def perceive(self, frame, scale_percent = 20):
+        rgb_image = self.getResizedRGBImage(frame, scale_percent)
         
-        rgb_image = rgb_image[20:186, :]
+        scale_rate = int(scale_percent / 20.0)
+        startPoint = scale_rate * 20
+        endPoint = startPoint + 166 * scale_rate
+        
+        rgb_image = rgb_image[startPoint:endPoint, :]
 
         temp = self.preprocessImage(rgb_image)
 
-        #rgb_image = temp[20:186, :]
         
         ### Detect data points
         Y_coor, lefts, rights = self.detectDataPoint(temp)
@@ -46,7 +46,10 @@ class RobotVision:
             ransacLeft, ransacRight =  self.fitRANSAC(Y_coor, lefts, rights)
 
             ### Output Frame
-            intercept, outframe, theme =  self.outputFrame(rgb_image, ransacLeft, ransacRight)
+            isValid, intercept, outframe, theme =  self.outputFrame(rgb_image, ransacLeft, ransacRight)
+
+            if isValid == False:
+                return temp, cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
 
             if self.detection == True:
                 outframe2 = self.detect(outframe)
@@ -59,7 +62,7 @@ class RobotVision:
 
             return temp, cv2.cvtColor(rtimg, cv2.COLOR_RGB2BGR)
 
-    def resizeImage(self, img, scale_percent=20):
+    def resizeImage(self, img, scale_percent):
         width = int(img.shape[1] * scale_percent / 100)
         height = int(img.shape[0] * scale_percent / 100)
         dim = (width, height)
@@ -70,9 +73,9 @@ class RobotVision:
         return resized_image
 
 
-    def getResizedRGBImage(self, img, scale_percent=20):
+    def getResizedRGBImage(self, img, scale_percent):
         # resize image
-        resized_image = self.resizeImage(img)
+        resized_image = self.resizeImage(img, scale_percent)
 
         # Change COLOR mode
         rgb_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB)
@@ -144,8 +147,6 @@ class RobotVision:
         return ransacLeft, ransacRight
 
     def outputFrame(self, image, ransacLeft, ransacRight):
-        copy3 = image.copy()
-        theme = 255 * np.ones_like(image)
         # Calculate interception
         a1 = ransacLeft.estimator_.coef_
         b1 = ransacLeft.estimator_.intercept_
@@ -153,8 +154,14 @@ class RobotVision:
         a2 = ransacRight.estimator_.coef_
         b2 = ransacRight.estimator_.intercept_
 
+        if a1 == a2:
+            return False, None, None, None
+
         Y_intercept = (b2-b1) / (a1 - a2)
         X_intercept = a1 * Y_intercept + b1 
+
+        copy3 = image.copy()
+        theme = 255 * np.ones_like(image)
 
         for i in range(copy3.shape[0]):
             if i < int(Y_intercept):
@@ -170,31 +177,15 @@ class RobotVision:
             # if np.abs(rightDot - leftDot) < 1:
             #     print(f"Intercept at [{leftDot}/{rightDot}, {i}]")
         
-        return [X_intercept, Y_intercept], copy3, theme
+        return True, [X_intercept, Y_intercept], copy3, theme
 
     def plotFrame(self, intercept, outFrame, theme):
         # create figure
-
-        tmp = cv2.circle(outFrame, (int(intercept[0]), int(intercept[1])), radius=0, color=(0, 0, 255), thickness=20)
-        tmpImg = cv2.line(tmp, (403, 604), (403, 0), color=(255, 0, 0), thickness=3)    
-        
-        # fig = plt.figure(figsize=(10, 7))
-
-        # # setting values to rows and column variables
-        # rows = 1
-        # columns = 2
-
-        # fig.add_subplot(rows, columns, 1)
-
-        # plt.imshow(copy3)
-
-        # # Adds a subplot at the 2nd position
-        # fig.add_subplot(rows, columns, 2)
-
-        # plt.scatter(intercept[0], intercept[1], color='blue')
-        # plt.plot([theme.shape[1]/2,  theme.shape[1]/2], [0, theme.shape[1]], color="red", linewidth=3)
-        # plt.imshow(theme)
-        # plt.show()
+        try:
+            tmp = cv2.circle(outFrame, (int(intercept[0]), int(intercept[1])), radius=0, color=(0, 0, 255), thickness=20)
+            tmpImg = cv2.line(tmp, (403, 604), (403, 0), color=(255, 0, 0), thickness=3)
+        except:
+            tmpImg = cv2.line(outFrame, (403, 604), (403, 0), color=(255, 0, 0), thickness=3)    
 
         return tmpImg
             
