@@ -42,19 +42,45 @@ struct Waypoint {
 
 int currWaypointIdx = 0;
 Waypoint route[] = {
-  { 39.5102767680703, -84.7326471498825 },
-  { 39.51027632936558, -84.73254972346685 },
-  { 39.51027578137975, -84.73247258665262 },
-  { 39.51027528137978, -84.73240286272696 },
-  { 39.510276180133495, -84.73233448964471 },
-  { 39.51027546610668, -84.73226528850194 },
-  { 39.510272602721564, -84.7321575134061 },
-  { 39.5102705293654, -84.73206027008631 },
-  { 39.51026922224198, -84.73192867148735 },
-  { 39.51026919871786, -84.73180867131127 },
-  { 39.510266453780645, -84.73170221686365 },
-  { 39.51026753055359, -84.7316162288247 },
-  { 39.5102622583931, -84.7315089026633 }
+  { 39.509964, -84.732634 },
+  { 39.509989, -84.732567 },
+  { 39.510035, -84.732447 },
+  { 39.510074, -84.732338 },
+  { 39.510106, -84.732253 },
+  { 39.510126, -84.732177 },
+  { 39.510165, -84.732078 },
+  { 39.510226, -84.731925 },
+  { 39.510265, -84.731850 },
+  { 39.510264, -84.731736 },
+  { 39.510262, -84.731629 },
+  { 39.510259, -84.731512 },
+  { 39.510259, -84.731352 },
+  { 39.510255, -84.731232 },
+  { 39.510252, -84.731110 },
+  { 39.510249, -84.730983 },
+  { 39.510250, -84.730870 },
+  { 39.510240, -84.730827 },
+  { 39.510259, -84.730800 },
+  { 39.510296, -84.730793 },
+  { 39.510348, -84.730789 },
+  { 39.510395, -84.730780 },
+  { 39.510424, -84.730825 },
+  { 39.510422, -84.730889 },
+  { 39.510422, -84.730977 },
+  { 39.510424, -84.731074 },
+  { 39.510424, -84.731186 },
+  { 39.510426, -84.731279 },
+  { 39.510428, -84.731370 },
+  { 39.510428, -84.731464 },
+  { 39.510429, -84.731568 },
+  { 39.510433, -84.731673 },
+  { 39.510435, -84.731776 },
+  { 39.510437, -84.731851 },
+  { 39.510435, -84.731948 },
+  { 39.510435, -84.732038 },
+  { 39.510437, -84.732145 },
+  { 39.510440, -84.732232 },
+  { 39.510443, -84.732337 }
 };
 
 /* =======================
@@ -122,6 +148,13 @@ AutoPID S(&actSteerPos, &setpointS, &speedS, -255,  255, 5, 8, 0);
 AutoPID C(&Compass::relHeading, &setpointC, &relSteerPos, -110, 110, 1, 0, 0);
 }
 
+namespace Vision {
+char buff[128];
+int buffIdx;
+bool confident = false;
+double correctionAngle = 0.0;
+}
+
 void setup() {
   // Initialize serial communication
   Serial.begin(115200);
@@ -158,15 +191,15 @@ void setup() {
   calibrateSteering();
 
   // Wait for GPS to acquire fix
-  while (!gps.hdop.isValid() || gps.hdop.hdop() > 1.35 || !gps.location.isValid()) {
+  while (!gps.hdop.isValid() || gps.hdop.hdop() > 1 || !gps.location.isValid()) {
     getGPSData();
     Serial.println(gps.hdop.hdop());
   }
 
   // Wait for Pi to boot and login
-  bool credPrompt = false;
-  char serialBuff[7];
-  while (!credPrompt) {
+  /* bool credPrompt = false;
+    char serialBuff[7];
+    while (!credPrompt) {
     while (Serial3.available()) {
       char in = (char) Serial3.read();
       Serial.print(in);
@@ -183,13 +216,13 @@ void setup() {
       credPrompt = true;
       break;
     }
-  }
+    }
 
-  if (credPrompt) {
+    if (credPrompt) {
     Serial3.println("pi");
     delay(1000);
     Serial3.println("raspberry");
-  }
+    } */
 
   // Fix acquired, set state to RUN
   setState(RUN);
@@ -198,16 +231,8 @@ void setup() {
 void loop() {
   getGPSData();
   getCompassData();
+  readVisionData();
   runPID();
-
-  while (Serial3.available()) {
-    Serial.print((char) Serial3.read());
-  }
-
-  while (Serial.available()) {
-    Serial3.print((char) Serial.read());
-  }
-
 
   switch (state) {
     case RUN:
@@ -231,7 +256,7 @@ void loop() {
       if (distToWaypoint <= 1.75) {
         currWaypointIdx++;
 
-        if (currWaypointIdx == 13) {
+        if (currWaypointIdx == 39) {
           state = STOP;
           PID::setpointL = 0;
           PID::setpointR = 0;
@@ -363,21 +388,51 @@ void encoderRightISR() {
 
 void calibrateSteering() {
   Motor::S.setSpeed(255);
-  delay(1000);
+  delay(500);
   // read right
   PID::maxPos = analogRead(A12);
   Motor::S.setSpeed(0);
   delay(250);
   Motor::S.setSpeed(-255);
-  delay(1000);
+  delay(500);
   // read left
   PID::minPos = analogRead(A12);
   Motor::S.setSpeed(0);
   delay(250);
+  Motor::S.setSpeed(255);
+  delay(250);
+  Motor::S.setSpeed(0);
 
   // Calculate center
   PID::ctrPos = (PID::maxPos + PID::minPos) / 2;
   Serial.println(PID::minPos);
   Serial.println(PID::ctrPos);
   Serial.println(PID::maxPos);
+}
+
+void readVisionData() {
+  while (Serial3.available()) {
+    char in = Serial3.read();
+    if (in != '\n') {
+      Vision::buff[Vision::buffIdx] = in;
+      Vision::buffIdx++;
+    } else {
+      // Full message received
+      Vision::buff[Vision::buffIdx] = '\0';
+
+      // Parse message
+      if (Vision::buff[0] == '1') {  // Trust the angle
+        Vision::confident = true;
+        char *angleBuff;
+        angleBuff = strtok(Vision::buff, ",");
+        angleBuff = strtok(NULL, ",");
+        Vision::correctionAngle = atof(angleBuff);
+        Compass::relHeading = Vision::correctionAngle;
+      } else {
+        Vision::confident = false;
+      }
+
+      Vision::buffIdx = 0;
+    }
+  }
 }
