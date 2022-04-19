@@ -15,8 +15,8 @@ ser = serial.Serial("/dev/ttyS0", 115200) # Open serial port to Arduino
 cap = cv2.VideoCapture(0)
 #cap = cv2.VideoCapture('roadtest1.mp4')
 
-meanOut = 0
-counter = 0
+#meanOut = 0
+#counter = 0
 while True:
     time_elapsed = time.time() - prev
     seconds = int(time.time() - startTime)
