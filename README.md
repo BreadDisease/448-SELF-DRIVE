@@ -16,7 +16,7 @@ Aaron Nguyen - Computer Science Student
 nguyendm@miamioh.edu  
 
 Matt Aaron - Computer Engineering Student  
-aaeronms@miamioh.edu  
+aaronms@miamioh.edu  
 
 Taylor Owens - Computer Engineering Student  
 owensts2@miamioh.edu  
