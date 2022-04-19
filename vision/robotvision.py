@@ -11,8 +11,9 @@ from object_detection import ObjectDetector
 
 class RobotVision:
 
-    def __init__(self, detection=False):
+    def __init__(self, detection=False, debugMode=False):
         super().__init__()
+        self.debugMode = debugMode
         self.detection = detection
         if detection:
             self.detector = ObjectDetector(gpu=False)
@@ -34,33 +35,33 @@ class RobotVision:
 
         temp = self.preprocessImage(rgb_image)
 
-        
         ### Detect data points
         Y_coor, lefts, rights = self.detectDataPoint(temp)
         if (len(Y_coor) < 3):
-            print("Not enough samples")
-            return temp, cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
+            return 0, 0, cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
         else:
-            print(len(Y_coor))
-            ### Fit Ransac
-            ransacLeft, ransacRight =  self.fitRANSAC(Y_coor, lefts, rights)
+            try:
+                ### Fit Ransac
+                ransacLeft, ransacRight =  self.fitRANSAC(Y_coor, lefts, rights)
 
-            ### Output Frame
-            isValid, intercept, outframe, theme =  self.outputFrame(rgb_image, ransacLeft, ransacRight)
+                ### Output Frame
+                isValid, intercept, outframe, theme =  self.outputFrame(rgb_image, ransacLeft, ransacRight)
 
-            if isValid == False:
-                return temp, cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
+                if isValid == False:
+                    return 0, 0, cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
 
-            if self.detection == True:
-                outframe2 = self.detect(outframe)
-                rtimg = self.plotFrame(intercept, outframe2, theme)
-            else:
-                rtimg = self.plotFrame(intercept, outframe, theme)
-            
-            ### Answer
-            #self.response(intercept)
+                if self.detection == True:
+                    outframe2 = self.detect(outframe)
+                    rtimg = self.plotFrame(intercept, outframe2, theme)
+                else:
+                    rtimg = self.plotFrame(intercept, outframe, theme)
+                
+                ### Answer
+                suggested_adjustment = self.response(intercept, temp.shape)
 
-            return temp, cv2.cvtColor(rtimg, cv2.COLOR_RGB2BGR)
+                return 1, suggested_adjustment, cv2.cvtColor(rtimg, cv2.COLOR_RGB2BGR)
+            except:
+                return 0, 0, cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
 
     def resizeImage(self, img, scale_percent):
         width = int(img.shape[1] * scale_percent / 100)
@@ -180,19 +181,45 @@ class RobotVision:
         return True, [X_intercept, Y_intercept], copy3, theme
 
     def plotFrame(self, intercept, outFrame, theme):
-        # create figure
         try:
-            tmp = cv2.circle(outFrame, (int(intercept[0]), int(intercept[1])), radius=0, color=(0, 0, 255), thickness=20)
-            tmpImg = cv2.line(tmp, (403, 604), (403, 0), color=(255, 0, 0), thickness=3)
+            return cv2.circle(outFrame, (int(intercept[0]), int(intercept[1])), radius=4, color=(0, 0, 255), thickness=20)
         except:
-            tmpImg = cv2.line(outFrame, (403, 604), (403, 0), color=(255, 0, 0), thickness=3)    
-
-        return tmpImg
+            return outFrame
             
-    def response(self, intercept):
-        if (np.abs(intercept[0] - 400) < 50):
-            print("No adjustment")
-        elif (intercept[0] - 400 < 0):
-            print("Adjust to the left")
-        else: 
-            print("Adjust to the right")
+    def response(self, intercept, imageSize):
+        standardVector = [0, imageSize[0]]
+        origin_point = [imageSize[1] / 2, 0]
+        
+        intercept_point = [intercept[0][0][0], intercept[1][0][0]]
+        z_vector = [intercept_point[0] - origin_point[0], intercept_point[1] - origin_point[1]]
+        
+        ab = (z_vector[1]*standardVector[1])
+        absZ = np.sqrt(z_vector[0]**2 + z_vector[1]**2)
+        absVector = np.sqrt(standardVector[0]**2 + standardVector[1]**2)
+
+        cosineAngle = ab / (absZ * absVector)
+
+        angle = np.arccos(cosineAngle) * (180 / np.pi)
+
+        # Do some condition here
+        # We will not trust any suggested angle which is more than 45
+        # Angle magnitude [0, 45] 
+        if angle > 45:
+            angle = 45
+
+        if self.debugMode:
+            print("-------------------------")
+            print(imageSize)
+            print(standardVector)
+            print(origin_point)
+            print(intercept_point)
+            if (z_vector[0] < 0):
+                print(-angle)
+            else:
+                print(+angle)
+            print("-------------------------")
+
+        if (z_vector[0] < 0):
+            return -angle 
+        else:
+            return angle 
