@@ -24,7 +24,7 @@ class RobotVision:
         
         return image
 
-    def perceive(self, frame, scale_percent = 20):
+    def perceive(self, frame, scale_percent = 50):
         rgb_image = self.getResizedRGBImage(frame, scale_percent)
         
         scale_rate = int(scale_percent / 20.0)
@@ -34,10 +34,14 @@ class RobotVision:
         rgb_image = rgb_image[startPoint:endPoint, :]
 
         temp = self.preprocessImage(rgb_image)
+        
+        #return 0, 0, temp #cv2.cvtColor(temp, cv2.COLOR_RGB2BGR)
 
+        
         ### Detect data points
         Y_coor, lefts, rights = self.detectDataPoint(temp)
         if (len(Y_coor) < 3):
+            print("Not enough data")
             return 0, 0, cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
         else:
             try:
@@ -48,6 +52,7 @@ class RobotVision:
                 isValid, intercept, outframe, theme =  self.outputFrame(rgb_image, ransacLeft, ransacRight)
 
                 if isValid == False:
+                    print("Line 54")
                     return 0, 0, cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
 
                 if self.detection == True:
@@ -56,10 +61,48 @@ class RobotVision:
                 else:
                     rtimg = self.plotFrame(intercept, outframe, theme)
                 
-                ### Answer
-                suggested_adjustment = self.response(intercept, temp.shape)
 
-                return 1, suggested_adjustment, cv2.cvtColor(rtimg, cv2.COLOR_RGB2BGR)
+                # Get the mid_point of ransacLeft and ransacRight for bottom pixel
+                leftPoint = int(ransacLeft.predict(np.array([[rtimg.shape[0]-1]])))
+                rightPoint = int(ransacRight.predict(np.array([[rtimg.shape[0]-1]])))
+
+                mid_pointX = int(leftPoint + (rightPoint - leftPoint)/2)
+
+                ### Answer
+                direction_angle, ratio_of_position = self.response(
+                        intercept, mid_pointX, temp.shape)
+
+                # Draw that line
+                mid_point = [mid_pointX, rtimg.shape[0]]      
+                intercept_point = [intercept[0][0][0], intercept[1][0][0]]
+                cv2.line(rtimg, (int(intercept_point[0]), int(intercept_point[1])), (mid_point[0], mid_point[1]), (0, 255, 0), thickness=3, lineType=8)
+
+                # Angle-based decision
+                if direction_angle > 105:
+                    steer = -1 # If the angle is too big on the right side of green line, we may steer to the left
+                elif direction_angle < 75:
+                    steer = 1 # May steer right
+                else:
+                    steer = 0 
+                
+                # Distance-based decision
+                if ratio_of_position > 0.25:
+                    go = -1 # If the car is too far to the right of the lane, we may steer to the left
+                elif ratio_of_position < -0.25:
+                    go = 1 # May steer right
+                else:
+                    go = 0 
+
+                # Decision making
+                # Prioritize Distance-based more than Angle-based
+                # If we are going more to the RIGHT of the road and need to steer to the LEFT based on angle
+                # We will just go straight because it will get us closer to the middle of the road
+                if steer + go == 0:
+                    decision = 0
+                else:
+                    decision = steer
+
+                return 1, decision, cv2.cvtColor(rtimg, cv2.COLOR_RGB2BGR)
             except:
                 return 0, 0, cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
 
@@ -182,44 +225,28 @@ class RobotVision:
 
     def plotFrame(self, intercept, outFrame, theme):
         try:
-            return cv2.circle(outFrame, (int(intercept[0]), int(intercept[1])), radius=4, color=(0, 0, 255), thickness=20)
+            return cv2.circle(outFrame, (int(intercept[0]), int(intercept[1])), radius=4, color=(0, 0, 255), thickness=5)
         except:
             return outFrame
             
-    def response(self, intercept, imageSize):
-        standardVector = [0, imageSize[0]]
-        origin_point = [imageSize[1] / 2, 0]
+    def response(self,intercept, midPointX, imageSize):
+        standardVector = [imageSize[1] ,0]
+        mid_point = [midPointX, imageSize[0]-1]
         
         intercept_point = [intercept[0][0][0], intercept[1][0][0]]
-        z_vector = [intercept_point[0] - origin_point[0], intercept_point[1] - origin_point[1]]
+        mid_vector = [intercept_point[0] - mid_point[0], intercept_point[1] - mid_point[1]]
         
-        ab = (z_vector[1]*standardVector[1])
-        absZ = np.sqrt(z_vector[0]**2 + z_vector[1]**2)
+        ab = (mid_vector[0]*standardVector[0] + mid_vector[1]*standardVector[1])
+        absMid = np.sqrt(mid_vector[0]**2 + mid_vector[1]**2)
         absVector = np.sqrt(standardVector[0]**2 + standardVector[1]**2)
 
-        cosineAngle = ab / (absZ * absVector)
+        cosineAngle = ab / (absMid * absVector)
 
         angle = np.arccos(cosineAngle) * (180 / np.pi)
 
-        # Do some condition here
-        # We will not trust any suggested angle which is more than 45
-        # Angle magnitude [0, 45] 
-        if angle > 45:
-            angle = 45
+        # Calculate distance from the midPoint
+        originX = int(imageSize[1]/2)
+        dist = originX - midPointX 
+        ratio = dist / imageSize[1]
 
-        if self.debugMode:
-            print("-------------------------")
-            print(imageSize)
-            print(standardVector)
-            print(origin_point)
-            print(intercept_point)
-            if (z_vector[0] < 0):
-                print(-angle)
-            else:
-                print(+angle)
-            print("-------------------------")
-
-        if (z_vector[0] < 0):
-            return -angle 
-        else:
-            return angle 
+        return angle, ratio
