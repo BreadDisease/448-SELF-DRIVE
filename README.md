@@ -2,9 +2,7 @@
 
 Github Repository for ECE448/449 Self Driving Car Senior Design Project.
 
-Watch the demo video here
-
-https://www.youtube.com/watch?v=FubqX0gzXsU
+Watch the demo video [here](https://www.youtube.com/watch?v=FubqX0gzXsU)
 
 Members:
 
