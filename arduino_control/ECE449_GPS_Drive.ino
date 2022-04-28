@@ -202,7 +202,7 @@ void setup() {
 }
 
 void loop() {
-  // getGPSData();
+  getGPSData();
   getCompassData();
   readVisionData();
   runPID();
