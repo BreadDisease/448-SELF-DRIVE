@@ -30,6 +30,8 @@
 #define WHEEL_CIRCUMFERENCE 1.117
 #define ONE_REV_TICKS 17
 
+unsigned long prevGPSDataTime = 0;
+
 // END OF CONFIGURATION
 // =======================
 
@@ -42,52 +44,45 @@ struct Waypoint {
 
 int currWaypointIdx = 0;
 Waypoint route[] = {
-  { 39.509964, -84.732634 },
-  { 39.509989, -84.732567 },
-  { 39.510035, -84.732447 },
-  { 39.510074, -84.732338 },
-  { 39.510106, -84.732253 },
-  { 39.510126, -84.732177 },
-  { 39.510165, -84.732078 },
-  { 39.510226, -84.731925 },
-  { 39.510265, -84.731850 },
-  { 39.510264, -84.731736 },
-  { 39.510262, -84.731629 },
-  { 39.510259, -84.731512 },
-  { 39.510259, -84.731352 },
-  { 39.510255, -84.731232 },
-  { 39.510252, -84.731110 },
-  { 39.510249, -84.730983 },
-  { 39.510250, -84.730870 },
-  { 39.510240, -84.730827 },
-  { 39.510259, -84.730800 },
-  { 39.510296, -84.730793 },
-  { 39.510348, -84.730789 },
-  { 39.510395, -84.730780 },
-  { 39.510424, -84.730825 },
-  { 39.510422, -84.730889 },
-  { 39.510422, -84.730977 },
-  { 39.510424, -84.731074 },
-  { 39.510424, -84.731186 },
-  { 39.510426, -84.731279 },
-  { 39.510428, -84.731370 },
-  { 39.510428, -84.731464 },
-  { 39.510429, -84.731568 },
-  { 39.510433, -84.731673 },
-  { 39.510435, -84.731776 },
-  { 39.510437, -84.731851 },
-  { 39.510435, -84.731948 },
-  { 39.510435, -84.732038 },
-  { 39.510437, -84.732145 },
-  { 39.510440, -84.732232 },
-  { 39.510443, -84.732337 }
+  { 39.5102794, -84.7324875 },
+  { 39.5102797, -84.7324403 },
+  { 39.5102801, -84.7323864 },
+  { 39.5102799, -84.7323426 },
+  { 39.5102776, -84.7322907 },
+  { 39.5102764, -84.7322428 },
+  { 39.5102752, -84.7321896 },
+  { 39.510275,  -84.7321418 },
+  { 39.5102727, -84.7320832 },
+  { 39.5102731, -84.732038 },
+  { 39.5102736, -84.7319901 },
+  { 39.5102741, -84.7319449 },
+  { 39.5102724, -84.731889 },
+  { 39.5102729, -84.7318445 },
+  { 39.5102733, -84.7317947 },
+  { 39.5102707, -84.7317475 },
+  { 39.5102701, -84.7316949 },
+  { 39.5102691, -84.7316501 },
+  { 39.5102682, -84.7316025 },
+  { 39.5102651, -84.7315523 },
+  { 39.5102642, -84.7314994 },
+  { 39.5102642, -84.7314499 },
+  { 39.5102643, -84.7314004 },
+  { 39.5102654, -84.7313522 },
+  { 39.5102644, -84.7313013 },
+  { 39.5102642, -84.7312575 },
+  { 39.510264,  -84.7312109 },
+  { 39.5102618, -84.7311631 },
+  { 39.5102616, -84.7311099 },
+  { 39.5102598, -84.7310586 },
+  { 39.5102591, -84.7310101 },
+  { 39.5102584, -84.7309602 },
+  { 39.5102587, -84.7309077 }
 };
 
 /* =======================
    State Variables
    ======================= */
-State state = STOP;              // Current state
-TinyGPSLocation startLocation;   // Location recorded when state changes
+State state = STOP;  // Current state
 
 /* =======================
    Motor Drivers
@@ -102,6 +97,9 @@ CytronMD S(PWM_DIR, 6, 7);
    GPS and Compass
    ======================= */
 TinyGPSPlus gps;
+int queueCnt = 0;
+TinyGPSLocation queue[5];
+Waypoint currLoc;
 namespace Compass {
 Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
 double relHeading = 0;
@@ -113,9 +111,14 @@ double relHeading = 0;
 namespace Encoder {
 volatile double ticksL;
 volatile double ticksR;
+}
 
-volatile double totalTicksL;
-volatile double totalTicksR;
+namespace Vision {
+char buff[128];
+int buffIdx;
+bool isConfident = false;
+double steeringCorrection = 0.0;
+double steerAdjustOut = 0;
 }
 
 namespace PID {
@@ -135,6 +138,7 @@ double relSteerPos = 0;
 double setpointS = 0;
 double targetHeading = 0;
 const double setpointC = 0;  // This needs to be a variable for the library to work
+const double setpointV = 0;
 
 // Left and right drive PIDs
 AutoPID L(&Encoder::ticksL,     &setpointL, &speedL,   0, 255, PID_DRIVE_KP, PID_DRIVE_KI, PID_DRIVE_KD);
@@ -146,14 +150,11 @@ AutoPID S(&actSteerPos, &setpointS, &speedS, -255,  255, 5, 8, 0);
 
 // Compass PID
 AutoPID C(&Compass::relHeading, &setpointC, &relSteerPos, -110, 110, 1, 0, 0);
+
+// Vision PID
+AutoPID V(&Vision::steeringCorrection, &setpointV, &Vision::steerAdjustOut, -110, 110, 10, 1, 1);
 }
 
-namespace Vision {
-char buff[128];
-int buffIdx;
-bool confident = false;
-double correctionAngle = 0.0;
-}
 
 void setup() {
   // Initialize serial communication
@@ -180,6 +181,7 @@ void setup() {
   PID::R.setTimeStep(1);
   PID::S.setTimeStep(1);
   PID::C.setTimeStep(1);
+  PID::V.setTimeStep(1);
 
   // Set control mode to AUTO
   setControlMode(AUTO);
@@ -193,70 +195,39 @@ void setup() {
   // Wait for GPS to acquire fix
   while (!gps.hdop.isValid() || gps.hdop.hdop() > 1 || !gps.location.isValid()) {
     getGPSData();
-    Serial.println(gps.hdop.hdop());
   }
-
-  // Wait for Pi to boot and login
-  /* bool credPrompt = false;
-    char serialBuff[7];
-    while (!credPrompt) {
-    while (Serial3.available()) {
-      char in = (char) Serial3.read();
-      Serial.print(in);
-      serialBuff[0] = serialBuff[1];
-      serialBuff[1] = serialBuff[2];
-      serialBuff[2] = serialBuff[3];
-      serialBuff[3] = serialBuff[4];
-      serialBuff[4] = serialBuff[5];
-      serialBuff[5] = serialBuff[6];
-      serialBuff[6] = in;
-    }
-
-    if (serialBuff[0] == 'l' && serialBuff[5] == ':') {
-      credPrompt = true;
-      break;
-    }
-    }
-
-    if (credPrompt) {
-    Serial3.println("pi");
-    delay(1000);
-    Serial3.println("raspberry");
-    } */
 
   // Fix acquired, set state to RUN
   setState(RUN);
 }
 
 void loop() {
-  getGPSData();
+  // getGPSData();
   getCompassData();
   readVisionData();
   runPID();
 
+  if (millis() - prevGPSDataTime > 1000) {
+    Serial.print("GPS: ");
+    Serial.print(gps.location.lat(), 6);
+    Serial.print(",");
+    Serial.println(gps.location.lng(), 6);
+    prevGPSDataTime = millis();
+    Serial.print("WAY: ");
+    Serial.println(currWaypointIdx);
+  }
+
   switch (state) {
     case RUN:
-      PID::setpointL = 2;
-      PID::setpointR = 2;
-
-      // Differential drive
-      // Adjust rear wheel differential to correct heading
-      if (Compass::relHeading > 0) {
-        // Turn left (right wheel is faster)
-        // PID::setpointL -= 1;
-        // PID::setpointR += 1;
-      } else if (Compass::relHeading < 0) {
-        // Turn right (left wheel is faster)
-        // PID::setpointL += 1;
-        // PID::setpointR -= 1;
-      }
+      PID::setpointL = 1.5;
+      PID::setpointR = 1.5;
 
       PID::targetHeading     = TinyGPSPlus::courseTo(gps.location.lat(), gps.location.lng(), route[currWaypointIdx].lat, route[currWaypointIdx].lng);
       double distToWaypoint  = TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), route[currWaypointIdx].lat, route[currWaypointIdx].lng);
-      if (distToWaypoint <= 1.75) {
+      if (distToWaypoint <= 1.75) {  // within 1.75 m of waypoint
         currWaypointIdx++;
 
-        if (currWaypointIdx == 39) {
+        if (currWaypointIdx == 33) {  // reached end
           state = STOP;
           PID::setpointL = 0;
           PID::setpointR = 0;
@@ -268,8 +239,6 @@ void loop() {
       Motor::L.setSpeed(0);
       Motor::R.setSpeed(0);
       while (true) {}
-      PID::setpointL = 0;
-      PID::setpointR = 0;
       break;
   }
 }
@@ -284,8 +253,18 @@ void runPID() {
     PID::L.run();
     PID::R.run();
     PID::C.run();
+    PID::V.run();
 
-    PID::setpointS = PID::relSteerPos + PID::ctrPos;
+    Serial.print("PID: ");
+    Serial.println(Vision::steerAdjustOut);
+
+    // Check with Vision
+    if (Vision::isConfident) {
+      PID::setpointS = Vision::steerAdjustOut + PID::relSteerPos + PID::ctrPos;
+    } else {
+      PID::setpointS = PID::relSteerPos + PID::ctrPos;
+    }
+
     PID::S.run();
 
     noInterrupts();
@@ -301,13 +280,12 @@ void runPID() {
 }
 
 /**
-   Simple helper method to store the current location before changing states.
+   Simple helper method to change states.
 
    \param[in] state The state to change to.
 */
 void setState(State newState) {
-  startLocation = gps.location;
-  state         = newState;
+  state = newState;
 }
 
 /**
@@ -375,7 +353,6 @@ void setControlMode(ControlMode mode) {
 */
 void encoderLeftISR() {
   Encoder::ticksL += 1;
-  Encoder::totalTicksL += 1;
 }
 
 /**
@@ -383,7 +360,6 @@ void encoderLeftISR() {
 */
 void encoderRightISR() {
   Encoder::ticksR += 1;
-  Encoder::totalTicksR += 1;
 }
 
 void calibrateSteering() {
@@ -422,14 +398,21 @@ void readVisionData() {
 
       // Parse message
       if (Vision::buff[0] == '1') {  // Trust the angle
-        Vision::confident = true;
+        Vision::isConfident = true;
         char *angleBuff;
         angleBuff = strtok(Vision::buff, ",");
         angleBuff = strtok(NULL, ",");
-        Vision::correctionAngle = atof(angleBuff);
-        Compass::relHeading = Vision::correctionAngle;
+        Vision::steeringCorrection = -1.0 * atof(angleBuff);
       } else {
-        Vision::confident = false;
+        Vision::isConfident = false;
+        PID::V.reset();
+      }
+
+      if (Vision::isConfident) {
+        Serial.print("VIS: Confident! Correction: ");
+        Serial.println(Vision::steeringCorrection);
+      } else {
+        Serial.println("VIS: Not confident.");
       }
 
       Vision::buffIdx = 0;
